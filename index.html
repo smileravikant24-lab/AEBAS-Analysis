@@ -282,9 +282,21 @@ tbody tr.clickable{cursor:pointer}
 
   <div class="setting-group">
     <div class="setting-label">✅ On Time Criteria</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6">A day is counted as <strong style="color:var(--green)">On Time</strong> when the employee punches in <em>on or before</em> the In-Time limit AND punches out <em>on or after</em> the Out-Time limit.</div>
-    <div class="setting-row"><label>On Time — In by</label><input type="time" id="cfg-ontime-in" value="09:10"></div>
-    <div class="setting-row"><label>On Time — Out after</label><input type="time" id="cfg-ontime-out" value="17:30"></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6">Enable one or both checks. A day counts as <strong style="color:var(--green)">On Time</strong> only when all enabled conditions are met.</div>
+    <div class="setting-row" style="align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="cfg-ontime-in-chk" checked onchange="document.getElementById('cfg-ontime-in').disabled=!this.checked" style="width:14px;height:14px;accent-color:var(--green);cursor:pointer">
+        On Time — In by
+      </label>
+      <input type="time" id="cfg-ontime-in" value="09:10">
+    </div>
+    <div class="setting-row" style="align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="cfg-ontime-out-chk" checked onchange="document.getElementById('cfg-ontime-out').disabled=!this.checked" style="width:14px;height:14px;accent-color:var(--green);cursor:pointer">
+        On Time — Out after
+      </label>
+      <input type="time" id="cfg-ontime-out" value="17:30">
+    </div>
   </div>
 
   <div class="setting-group">
@@ -625,6 +637,8 @@ let CFG = {
   maxHours:      170,
   onTimeIn:      '09:10',   // on-time: in-time must be ≤ this
   onTimeOut:     '17:30',   // on-time: out-time must be ≥ this
+  onTimeInChk:   true,      // enable in-time check
+  onTimeOutChk:  true,      // enable out-time check
   highAbsent:    8,
   lowHours:      100,
   freqLate:      10,
@@ -688,8 +702,12 @@ function syncSettingsUI() {
   document.getElementById('cfg-office-start').value  = CFG.officeStart;
   document.getElementById('cfg-office-end').value    = CFG.officeEnd;
   document.getElementById('cfg-max-hours').value     = CFG.maxHours;
-  document.getElementById('cfg-ontime-in').value     = CFG.onTimeIn;
-  document.getElementById('cfg-ontime-out').value    = CFG.onTimeOut;
+  document.getElementById('cfg-ontime-in').value      = CFG.onTimeIn;
+  document.getElementById('cfg-ontime-out').value     = CFG.onTimeOut;
+  document.getElementById('cfg-ontime-in-chk').checked  = CFG.onTimeInChk;
+  document.getElementById('cfg-ontime-out-chk').checked = CFG.onTimeOutChk;
+  document.getElementById('cfg-ontime-in').disabled   = !CFG.onTimeInChk;
+  document.getElementById('cfg-ontime-out').disabled  = !CFG.onTimeOutChk;
   document.getElementById('cfg-high-absent').value   = CFG.highAbsent;
   document.getElementById('cfg-low-hours').value     = CFG.lowHours;
   document.getElementById('cfg-freq-late').value     = CFG.freqLate;
@@ -708,8 +726,10 @@ function applySettingsAndRefresh() {
   CFG.officeStart   = document.getElementById('cfg-office-start').value   || '09:00';
   CFG.officeEnd     = document.getElementById('cfg-office-end').value     || '17:30';
   CFG.maxHours      = parseInt(document.getElementById('cfg-max-hours').value)    || 170;
-  CFG.onTimeIn      = document.getElementById('cfg-ontime-in').value      || '09:10';
-  CFG.onTimeOut     = document.getElementById('cfg-ontime-out').value     || '17:30';
+  CFG.onTimeIn      = document.getElementById('cfg-ontime-in').value       || '09:10';
+  CFG.onTimeOut     = document.getElementById('cfg-ontime-out').value      || '17:30';
+  CFG.onTimeInChk   = document.getElementById('cfg-ontime-in-chk').checked;
+  CFG.onTimeOutChk  = document.getElementById('cfg-ontime-out-chk').checked;
   CFG.highAbsent    = parseInt(document.getElementById('cfg-high-absent').value)  || 8;
   CFG.lowHours      = parseInt(document.getElementById('cfg-low-hours').value)    || 100;
   CFG.freqLate      = parseInt(document.getElementById('cfg-freq-late').value)    || 10;
@@ -735,7 +755,7 @@ function applySettingsAndRefresh() {
 }
 
 function resetSettings() {
-  CFG = { lateTime:'09:10', early1Time:'17:30', early2Time:'17:00', officeStart:'09:00', officeEnd:'17:30', maxHours:170, onTimeIn:'09:10', onTimeOut:'17:30', highAbsent:8, lowHours:100, freqLate:10, earlyWarn:3, orgName:'CAG India', holThreshold:80, showId:true, showDesig:true, highlight:true };
+  CFG = { lateTime:'09:10', early1Time:'17:30', early2Time:'17:00', officeStart:'09:00', officeEnd:'17:30', maxHours:170, onTimeIn:'09:10', onTimeOut:'17:30', onTimeInChk:true, onTimeOutChk:true, highAbsent:8, lowHours:100, freqLate:10, earlyWarn:3, orgName:'CAG India', holThreshold:80, showId:true, showDesig:true, highlight:true };
   syncSettingsUI();
   applySettingsAndRefresh();
 }
@@ -766,7 +786,7 @@ function computeStats(days, holidaySet) {
     if(im && im > T_LATE) late++;
     if(om && om < T_E1)   eb1730++;
     if(om && om < T_E2)   eb1700++;
-    if(im && om && im <= T_OT_IN && om >= T_OT_OUT) onTime++;
+    { const inOk = !CFG.onTimeInChk || (im && im <= T_OT_IN); const outOk = !CFG.onTimeOutChk || (om && om >= T_OT_OUT); if((CFG.onTimeInChk||CFG.onTimeOutChk) && inOk && outOk) onTime++; }
     if(im && om) {
       const ei = Math.max(T_START, Math.min(T_END, im));
       const eo = Math.max(T_START, Math.min(T_END, om));
