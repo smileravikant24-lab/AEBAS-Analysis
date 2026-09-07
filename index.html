@@ -281,6 +281,13 @@ tbody tr.clickable{cursor:pointer}
   </div>
 
   <div class="setting-group">
+    <div class="setting-label">✅ On Time Criteria</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6">A day is counted as <strong style="color:var(--green)">On Time</strong> when the employee punches in <em>on or before</em> the In-Time limit AND punches out <em>on or after</em> the Out-Time limit.</div>
+    <div class="setting-row"><label>On Time — In by</label><input type="time" id="cfg-ontime-in" value="09:10"></div>
+    <div class="setting-row"><label>On Time — Out after</label><input type="time" id="cfg-ontime-out" value="17:30"></div>
+  </div>
+
+  <div class="setting-group">
     <div class="setting-label">📊 Status Labels</div>
     <div class="setting-row"><label>High-Absent if absent ≥</label><input type="number" id="cfg-high-absent" value="8" min="1" max="25"></div>
     <div class="setting-row"><label>Low-Hours if hrs &lt;</label><input type="number" id="cfg-low-hours" value="100" min="10" max="200"></div>
@@ -470,6 +477,7 @@ tbody tr.clickable{cursor:pointer}
                     <th id="th-late">Late In</th>
                     <th id="th-eb1730">Left &lt;17:30</th>
                     <th id="th-eb1700">Left &lt;17:00</th>
+                    <th id="th-ontime">On Time</th>
                     <th id="th-hrs">Total Hrs</th>
                     <th>Status</th>
                   </tr>
@@ -562,24 +570,14 @@ tbody tr.clickable{cursor:pointer}
   <div class="format-modal">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
       <div>
-        <h2>📋 File Format Guide</h2>
-        <p>How to prepare your CSV files for upload</p>
+        <h2>📅 Holiday / Leave CSV Format</h2>
+        <p>Upload a CSV to define which days are excluded from all calculations</p>
       </div>
       <button class="modal-close" onclick="closeFormatModal()">✕</button>
     </div>
 
-    <h3>1. Attendance CSV (AEBAS Export)</h3>
-    <p>Export directly from the AEBAS portal. The dashboard auto-detects the month, employees, and working days. No editing needed.</p>
-    <div class="format-steps">
-      <div class="format-step"><p>Login to AEBAS portal → Reports → Monthly Attendance Report</p></div>
-      <div class="format-step"><p>Select Month, Year, and your office/division</p></div>
-      <div class="format-step"><p>Click Export → Download CSV</p></div>
-      <div class="format-step"><p>Upload that file directly here — no changes needed</p></div>
-    </div>
-    <p style="font-size:11px;color:var(--muted)">The CSV should start with "Organization name : ..." on the first line. Working days are auto-detected when ≥80% employees are absent.</p>
-
-    <h3>2. Holiday / Leave CSV Format</h3>
-    <p>Upload a simple CSV to define which days are holidays (these are excluded from all calculations). Download the sample below or create your own.</p>
+    <h3>CSV Format</h3>
+    <p>Create a simple 3-column CSV. Download the sample below or build your own. Each row is one holiday or weekend.</p>
     <div class="code-block" id="holiday-format-display">Date,Label,Type
 26-08-2026,Janmashtami,National Holiday
 15-08-2026,Independence Day,National Holiday
@@ -597,7 +595,7 @@ tbody tr.clickable{cursor:pointer}
       <button class="dl-btn secondary" onclick="downloadHolidayTemplate()">⬇ Download Blank Template</button>
     </div>
 
-    <h3>3. Column Reference</h3>
+    <h3>Column Reference</h3>
     <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px">
       <thead><tr style="background:var(--surface2)">
         <th style="padding:8px 12px;text-align:left;border:1px solid var(--border);font-family:var(--mono)">Column</th>
@@ -608,12 +606,9 @@ tbody tr.clickable{cursor:pointer}
       <tbody>
         <tr><td style="padding:8px 12px;border:1px solid var(--border);font-family:var(--mono);color:var(--accent)">Date</td><td style="padding:8px 12px;border:1px solid var(--border)">DD-MM-YYYY</td><td style="padding:8px 12px;border:1px solid var(--border);font-family:var(--mono)">26-08-2026</td><td style="padding:8px 12px;border:1px solid var(--border);color:var(--muted)">Required</td></tr>
         <tr><td style="padding:8px 12px;border:1px solid var(--border);font-family:var(--mono);color:var(--accent)">Label</td><td style="padding:8px 12px;border:1px solid var(--border)">Any text</td><td style="padding:8px 12px;border:1px solid var(--border);font-family:var(--mono)">Janmashtami</td><td style="padding:8px 12px;border:1px solid var(--border);color:var(--muted)">Shown in Holidays tab</td></tr>
-        <tr><td style="padding:8px 12px;border:1px solid var(--border);font-family:var(--mono);color:var(--accent)">Type</td><td style="padding:8px 12px;border:1px solid var(--border)">Any text</td><td style="padding:8px 12px;border:1px solid var(--border);font-family:var(--mono)">Weekend</td><td style="padding:8px 12px;border:1px solid var(--border);color:var(--muted)">Optional — Weekend/National Holiday/etc.</td></tr>
+        <tr><td style="padding:8px 12px;border:1px solid var(--border);font-family:var(--mono);color:var(--accent)">Type</td><td style="padding:8px 12px;border:1px solid var(--border)">Any text</td><td style="padding:8px 12px;border:1px solid var(--border);font-family:var(--mono)">Weekend</td><td style="padding:8px 12px;border:1px solid var(--border);color:var(--muted)">Optional — Weekend / National Holiday / etc.</td></tr>
       </tbody>
     </table>
-
-    <h3>4. Auto-Detection</h3>
-    <p>If you don't upload a holiday CSV, the dashboard automatically detects non-working days by finding dates where ≥80% of employees have no attendance entry. You can adjust this threshold in ⚙️ Settings.</p>
   </div>
 </div>
 
@@ -628,6 +623,8 @@ let CFG = {
   officeStart:   '09:00',
   officeEnd:     '17:30',
   maxHours:      170,
+  onTimeIn:      '09:10',   // on-time: in-time must be ≤ this
+  onTimeOut:     '17:30',   // on-time: out-time must be ≥ this
   highAbsent:    8,
   lowHours:      100,
   freqLate:      10,
@@ -691,6 +688,8 @@ function syncSettingsUI() {
   document.getElementById('cfg-office-start').value  = CFG.officeStart;
   document.getElementById('cfg-office-end').value    = CFG.officeEnd;
   document.getElementById('cfg-max-hours').value     = CFG.maxHours;
+  document.getElementById('cfg-ontime-in').value     = CFG.onTimeIn;
+  document.getElementById('cfg-ontime-out').value    = CFG.onTimeOut;
   document.getElementById('cfg-high-absent').value   = CFG.highAbsent;
   document.getElementById('cfg-low-hours').value     = CFG.lowHours;
   document.getElementById('cfg-freq-late').value     = CFG.freqLate;
@@ -709,6 +708,8 @@ function applySettingsAndRefresh() {
   CFG.officeStart   = document.getElementById('cfg-office-start').value   || '09:00';
   CFG.officeEnd     = document.getElementById('cfg-office-end').value     || '17:30';
   CFG.maxHours      = parseInt(document.getElementById('cfg-max-hours').value)    || 170;
+  CFG.onTimeIn      = document.getElementById('cfg-ontime-in').value      || '09:10';
+  CFG.onTimeOut     = document.getElementById('cfg-ontime-out').value     || '17:30';
   CFG.highAbsent    = parseInt(document.getElementById('cfg-high-absent').value)  || 8;
   CFG.lowHours      = parseInt(document.getElementById('cfg-low-hours').value)    || 100;
   CFG.freqLate      = parseInt(document.getElementById('cfg-freq-late').value)    || 10;
@@ -734,7 +735,7 @@ function applySettingsAndRefresh() {
 }
 
 function resetSettings() {
-  CFG = { lateTime:'09:10', early1Time:'17:30', early2Time:'17:00', officeStart:'09:00', officeEnd:'17:30', maxHours:170, highAbsent:8, lowHours:100, freqLate:10, earlyWarn:3, orgName:'CAG India', holThreshold:80, showId:true, showDesig:true, highlight:true };
+  CFG = { lateTime:'09:10', early1Time:'17:30', early2Time:'17:00', officeStart:'09:00', officeEnd:'17:30', maxHours:170, onTimeIn:'09:10', onTimeOut:'17:30', highAbsent:8, lowHours:100, freqLate:10, earlyWarn:3, orgName:'CAG India', holThreshold:80, showId:true, showDesig:true, highlight:true };
   syncSettingsUI();
   applySettingsAndRefresh();
 }
@@ -751,8 +752,10 @@ function computeStats(days, holidaySet) {
   const T_E2     = tM(CFG.early2Time);
   const T_START  = tM(CFG.officeStart);
   const T_END    = tM(CFG.officeEnd);
+  const T_OT_IN  = tM(CFG.onTimeIn);
+  const T_OT_OUT = tM(CFG.onTimeOut);
   const MAX_ARR  = 14*60;
-  let present=0, absent=0, late=0, eb1730=0, eb1700=0, totalMins=0, wd=0;
+  let present=0, absent=0, late=0, eb1730=0, eb1700=0, onTime=0, totalMins=0, wd=0;
   days.forEach(d => {
     if(holidaySet.has(d[0])) return;
     wd++;
@@ -763,13 +766,14 @@ function computeStats(days, holidaySet) {
     if(im && im > T_LATE) late++;
     if(om && om < T_E1)   eb1730++;
     if(om && om < T_E2)   eb1700++;
+    if(im && om && im <= T_OT_IN && om >= T_OT_OUT) onTime++;
     if(im && om) {
       const ei = Math.max(T_START, Math.min(T_END, im));
       const eo = Math.max(T_START, Math.min(T_END, om));
       totalMins += Math.max(0, eo-ei);
     }
   });
-  return { wd, present, absent, late, eb1730, eb1700, hrs:+(totalMins/60).toFixed(1) };
+  return { wd, present, absent, late, eb1730, eb1700, onTime, hrs:+(totalMins/60).toFixed(1) };
 }
 
 function computeFilteredStats(e, tinM, toutM) {
@@ -976,6 +980,7 @@ function renderEmpTable(){
       <td><span style="color:${s.late>=CFG.freqLate?'var(--amber)':'var(--text2)'}">${s.late}</span></td>
       <td><span style="color:${s.eb1730>=CFG.earlyWarn?'var(--teal)':'var(--text2)'}">${s.eb1730}</span></td>
       <td><span style="color:${s.eb1700>0?'var(--red)':'var(--muted)'}">${s.eb1700}</span></td>
+      <td><span style="color:${(s.onTime||0)>0?'var(--green)':'var(--muted)'};font-weight:${(s.onTime||0)>0?'700':'400'}">${s.onTime||0}</span></td>
       <td><span style="color:${hc};font-family:var(--mono);font-weight:700">${s.hrs}h</span></td>
       <td>${status}</td>
     </tr>`;
