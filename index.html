@@ -261,7 +261,6 @@ tbody tr.clickable{cursor:pointer}
     ⬆ Load CSV
     <input type="file" accept=".csv" id="csv-upload" style="display:none" onchange="loadCSV(this)">
   </label>
-  <button class="tb-btn primary" onclick="document.getElementById('csv-upload').click()">+ Load New Month</button>
 </div>
 
 <!-- ═══════════ SETTINGS PANEL ═══════════ -->
@@ -278,25 +277,6 @@ tbody tr.clickable{cursor:pointer}
     <div class="setting-row"><label>Office Start Time</label><input type="time" id="cfg-office-start" value="09:00"></div>
     <div class="setting-row"><label>Office End Time</label><input type="time" id="cfg-office-end" value="17:30"></div>
     <div class="setting-row"><label>Max Hours/Month</label><input type="number" id="cfg-max-hours" value="170" min="100" max="300"></div>
-  </div>
-
-  <div class="setting-group">
-    <div class="setting-label">✅ On Time Criteria</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6">Enable one or both checks. A day counts as <strong style="color:var(--green)">On Time</strong> only when all enabled conditions are met.</div>
-    <div class="setting-row" style="align-items:center">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="checkbox" id="cfg-ontime-in-chk" checked onchange="document.getElementById('cfg-ontime-in').disabled=!this.checked" style="width:14px;height:14px;accent-color:var(--green);cursor:pointer">
-        On Time — In by
-      </label>
-      <input type="time" id="cfg-ontime-in" value="09:10">
-    </div>
-    <div class="setting-row" style="align-items:center">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="checkbox" id="cfg-ontime-out-chk" checked onchange="document.getElementById('cfg-ontime-out').disabled=!this.checked" style="width:14px;height:14px;accent-color:var(--green);cursor:pointer">
-        On Time — Out after
-      </label>
-      <input type="time" id="cfg-ontime-out" value="17:30">
-    </div>
   </div>
 
   <div class="setting-group">
@@ -373,6 +353,30 @@ tbody tr.clickable{cursor:pointer}
       <button class="criteria-btn" id="cb-b1730" onclick="toggleCriteria('b1730')">
         Left before 17:30 <span class="cb-count" id="cnt-b1730">—</span>
       </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Analysis View</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button class="criteria-btn" id="cb-ontime" onclick="toggleAnalysisView('ontime')" style="flex:1;justify-content:center;gap:4px">✅ On Time <span class="cb-count" id="cnt-ontime">—</span></button>
+        <button class="criteria-btn" id="cb-lateview" onclick="toggleAnalysisView('lateview')" style="flex:1;justify-content:center;gap:4px">⚠️ Late <span class="cb-count" id="cnt-lateview">—</span></button>
+      </div>
+      <div id="av-ontime-params" style="display:none">
+        <div class="filter-group" style="margin-bottom:6px">
+          <label>In by (on-time threshold)</label>
+          <input type="time" id="av-ontime-in" value="09:10" oninput="updateAnalysisView()">
+        </div>
+        <div class="filter-group">
+          <label>Out after (on-time threshold)</label>
+          <input type="time" id="av-ontime-out" value="17:30" oninput="updateAnalysisView()">
+        </div>
+      </div>
+      <div id="av-late-params" style="display:none">
+        <div class="filter-group">
+          <label>Late after</label>
+          <input type="time" id="av-late-in" value="09:10" oninput="updateAnalysisView()">
+        </div>
+      </div>
     </div>
 
     <div class="sidebar-section">
@@ -635,10 +639,8 @@ let CFG = {
   officeStart:   '09:00',
   officeEnd:     '17:30',
   maxHours:      170,
-  onTimeIn:      '09:10',   // on-time: in-time must be ≤ this
-  onTimeOut:     '17:30',   // on-time: out-time must be ≥ this
-  onTimeInChk:   true,      // enable in-time check
-  onTimeOutChk:  true,      // enable out-time check
+  onTimeIn:      '09:10',
+  onTimeOut:     '17:30',
   highAbsent:    8,
   lowHours:      100,
   freqLate:      10,
@@ -658,6 +660,7 @@ let HOLIDAYS_SET = new Set();
 let HOLIDAY_DETAILS = []; // {day, label, type}
 let filtered = [];
 let activeCriteria = null;
+let activeAnalysisView = null;
 let currentSort = 'name';
 
 // ═══════════════════════════════════════════════════════════════
@@ -702,12 +705,6 @@ function syncSettingsUI() {
   document.getElementById('cfg-office-start').value  = CFG.officeStart;
   document.getElementById('cfg-office-end').value    = CFG.officeEnd;
   document.getElementById('cfg-max-hours').value     = CFG.maxHours;
-  document.getElementById('cfg-ontime-in').value      = CFG.onTimeIn;
-  document.getElementById('cfg-ontime-out').value     = CFG.onTimeOut;
-  document.getElementById('cfg-ontime-in-chk').checked  = CFG.onTimeInChk;
-  document.getElementById('cfg-ontime-out-chk').checked = CFG.onTimeOutChk;
-  document.getElementById('cfg-ontime-in').disabled   = !CFG.onTimeInChk;
-  document.getElementById('cfg-ontime-out').disabled  = !CFG.onTimeOutChk;
   document.getElementById('cfg-high-absent').value   = CFG.highAbsent;
   document.getElementById('cfg-low-hours').value     = CFG.lowHours;
   document.getElementById('cfg-freq-late').value     = CFG.freqLate;
@@ -726,10 +723,6 @@ function applySettingsAndRefresh() {
   CFG.officeStart   = document.getElementById('cfg-office-start').value   || '09:00';
   CFG.officeEnd     = document.getElementById('cfg-office-end').value     || '17:30';
   CFG.maxHours      = parseInt(document.getElementById('cfg-max-hours').value)    || 170;
-  CFG.onTimeIn      = document.getElementById('cfg-ontime-in').value       || '09:10';
-  CFG.onTimeOut     = document.getElementById('cfg-ontime-out').value      || '17:30';
-  CFG.onTimeInChk   = document.getElementById('cfg-ontime-in-chk').checked;
-  CFG.onTimeOutChk  = document.getElementById('cfg-ontime-out-chk').checked;
   CFG.highAbsent    = parseInt(document.getElementById('cfg-high-absent').value)  || 8;
   CFG.lowHours      = parseInt(document.getElementById('cfg-low-hours').value)    || 100;
   CFG.freqLate      = parseInt(document.getElementById('cfg-freq-late').value)    || 10;
@@ -755,7 +748,7 @@ function applySettingsAndRefresh() {
 }
 
 function resetSettings() {
-  CFG = { lateTime:'09:10', early1Time:'17:30', early2Time:'17:00', officeStart:'09:00', officeEnd:'17:30', maxHours:170, onTimeIn:'09:10', onTimeOut:'17:30', onTimeInChk:true, onTimeOutChk:true, highAbsent:8, lowHours:100, freqLate:10, earlyWarn:3, orgName:'CAG India', holThreshold:80, showId:true, showDesig:true, highlight:true };
+  CFG = { lateTime:'09:10', early1Time:'17:30', early2Time:'17:00', officeStart:'09:00', officeEnd:'17:30', maxHours:170, onTimeIn:'09:10', onTimeOut:'17:30', highAbsent:8, lowHours:100, freqLate:10, earlyWarn:3, orgName:'CAG India', holThreshold:80, showId:true, showDesig:true, highlight:true };
   syncSettingsUI();
   applySettingsAndRefresh();
 }
@@ -786,7 +779,7 @@ function computeStats(days, holidaySet) {
     if(im && im > T_LATE) late++;
     if(om && om < T_E1)   eb1730++;
     if(om && om < T_E2)   eb1700++;
-    { const inOk = !CFG.onTimeInChk || (im && im <= T_OT_IN); const outOk = !CFG.onTimeOutChk || (om && om >= T_OT_OUT); if((CFG.onTimeInChk||CFG.onTimeOutChk) && inOk && outOk) onTime++; }
+    if(im && om && im <= T_OT_IN && om >= T_OT_OUT) onTime++;
     if(im && om) {
       const ei = Math.max(T_START, Math.min(T_END, im));
       const eo = Math.max(T_START, Math.min(T_END, om));
@@ -879,6 +872,8 @@ function applyFilters() {
     if(activeCriteria==='absent'&&e.s.absent!==e.s.wd) return false;
     if(activeCriteria==='late'&&e.s.late===0) return false;
     if(activeCriteria==='b1730'&&e.s.eb1730===0) return false;
+    if(activeAnalysisView==='ontime'&&e.s.onTime===0) return false;
+    if(activeAnalysisView==='lateview'&&e.s.late===0) return false;
     if(hasTime){
       const cs=computeFilteredStats(e,tinM,toutM);
       if(cs.present===0){e._cs=null;return false;}
@@ -910,6 +905,8 @@ function applyFilters() {
   document.getElementById('cnt-absent').textContent=DATA.emps.filter(e=>e.s.absent===e.s.wd).length;
   document.getElementById('cnt-late').textContent=DATA.emps.filter(e=>e.s.late>0).length;
   document.getElementById('cnt-b1730').textContent=DATA.emps.filter(e=>e.s.eb1730>0).length;
+  document.getElementById('cnt-ontime').textContent=DATA.emps.filter(e=>e.s.onTime>0).length;
+  document.getElementById('cnt-lateview').textContent=DATA.emps.filter(e=>e.s.late>0).length;
 
   renderKPIs();
   renderEmpTable();
@@ -924,12 +921,44 @@ function toggleCriteria(c){
   applyFilters();
 }
 
+function toggleAnalysisView(v){
+  activeAnalysisView = (activeAnalysisView===v) ? null : v;
+  ['ontime','lateview'].forEach(k=>{
+    const btn=document.getElementById('cb-'+k);
+    if(btn) btn.classList.toggle('active', activeAnalysisView===k);
+  });
+  document.getElementById('av-ontime-params').style.display = activeAnalysisView==='ontime'  ? '' : 'none';
+  document.getElementById('av-late-params').style.display   = activeAnalysisView==='lateview'? '' : 'none';
+  updateAnalysisView();
+}
+
+function updateAnalysisView(){
+  if(activeAnalysisView==='ontime'){
+    CFG.onTimeIn  = document.getElementById('av-ontime-in').value  || '09:10';
+    CFG.onTimeOut = document.getElementById('av-ontime-out').value || '17:30';
+    if(DATA) DATA.emps.forEach(e=>{ e.s = computeStats(e.days, HOLIDAYS_SET); });
+  } else if(activeAnalysisView==='lateview'){
+    CFG.lateTime = document.getElementById('av-late-in').value || '09:10';
+    if(DATA) DATA.emps.forEach(e=>{ e.s = computeStats(e.days, HOLIDAYS_SET); });
+  }
+  if(DATA){
+    const tot = DATA.emps.length;
+    document.getElementById('cnt-ontime').textContent   = DATA.emps.filter(e=>e.s.onTime>0).length;
+    document.getElementById('cnt-lateview').textContent = DATA.emps.filter(e=>e.s.late>0).length;
+  }
+  applyFilters();
+}
+
 function resetFilters(){
   ['f-search','f-tin','f-tout','f-hrs-min','f-hrs-max','f-absent-min'].forEach(id=>{document.getElementById(id).value='';});
   document.getElementById('f-desig').value='';
   document.getElementById('f-div').value='';
   document.getElementById('sort-by').value='name';
   activeCriteria=null;
+  activeAnalysisView=null;
+  ['ontime','lateview'].forEach(k=>{ const b=document.getElementById('cb-'+k); if(b) b.classList.remove('active'); });
+  document.getElementById('av-ontime-params').style.display='none';
+  document.getElementById('av-late-params').style.display='none';
   document.querySelectorAll('.criteria-btn').forEach(b=>b.classList.remove('active'));
   applyFilters();
 }
