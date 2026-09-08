@@ -995,19 +995,35 @@ function renderKPIs(){
 // ═══════════════════════════════════════════════════════════════
 function renderEmpTable(){
   const tb=document.getElementById('emp-tbody');
-  if(!filtered.length){tb.innerHTML='<tr><td colspan="10" class="no-data"><div class="nd-icon">🔍</div>No employees match filters</td></tr>';return;}
-  const hasTime=filtered.some(e=>e._cs);
-  // Update headers
+  const isOnTime = activeAnalysisView==='ontime';
+  const isLate   = activeAnalysisView==='lateview';
+  const hasTime  = filtered.some(e=>e._cs);
+
+  // Column visibility
+  document.getElementById('th-late').style.display   = isOnTime ? 'none' : '';
+  document.getElementById('th-eb1730').style.display = (isOnTime||isLate) ? 'none' : '';
+  document.getElementById('th-eb1700').style.display = (isOnTime||isLate) ? 'none' : '';
+  document.getElementById('th-ontime').style.display = isLate ? 'none' : '';
+
+  // Header labels
   document.getElementById('th-present').textContent = hasTime?'Match Days':'Present';
   document.getElementById('th-absent').textContent  = hasTime?'No-Match':'Absent';
-  document.getElementById('th-late').textContent    = hasTime?'Late (matched)':'Late In';
+  document.getElementById('th-late').textContent    = hasTime?'Late (matched)':isLate?'Late Days':'Late In';
   document.getElementById('th-eb1730').textContent  = hasTime?`<${CFG.early1Time} (m)`:`Left <${CFG.early1Time}`;
   document.getElementById('th-eb1700').textContent  = hasTime?`<${CFG.early2Time} (m)`:`Left <${CFG.early2Time}`;
   document.getElementById('th-hrs').textContent     = hasTime?'Hrs (matched)':'Total Hrs';
-  if(CFG.showDesig) document.getElementById('th-desig').style.display='';
-  else document.getElementById('th-desig').style.display='none';
+  document.getElementById('th-ontime').textContent  = isOnTime?'On Time Days':'On Time';
+  document.getElementById('th-desig').style.display = CFG.showDesig?'':'none';
 
-  tb.innerHTML=filtered.map(e=>{
+  const colCount = (CFG.showDesig?1:0) + (isOnTime?6:isLate?7:9);
+  if(!filtered.length){tb.innerHTML=`<tr><td colspan="${colCount}" class="no-data"><div class="nd-icon">🔍</div>No employees match filters</td></tr>`;return;}
+
+  // Sort: analysis view drives default order
+  let rows=[...filtered];
+  if(isOnTime) rows.sort((a,b)=>(b.s.onTime||0)-(a.s.onTime||0));
+  else if(isLate) rows.sort((a,b)=>(b.s.late||0)-(a.s.late||0));
+
+  tb.innerHTML=rows.map(e=>{
     const s=e._cs||e.s, hc=hrsColor(s.hrs);
     const nonMatch=e._cs?(e.s.wd-s.present):s.absent;
     const matchBadge=e._cs?`<span style="font-size:9px;color:var(--accent2);font-family:var(--mono);background:rgba(124,92,252,.12);padding:1px 6px;border-radius:3px;margin-left:5px">${s.present}/${e.s.wd}d</span>`:'';
@@ -1020,16 +1036,21 @@ function renderEmpTable(){
         :e.s.eb1700>=CFG.earlyWarn?'<span class="tag tag-amber">Early Exit</span>'
         :e.s.late>=CFG.freqLate?'<span class="tag tag-amber">Freq. Late</span>'
         :'<span class="tag tag-green">Regular</span>');
+    const lateCell   = isOnTime?'':
+      `<td><span style="color:${s.late>=CFG.freqLate?'var(--amber)':'var(--text2)'}">${s.late}</span></td>`;
+    const earlyCell1 = (isOnTime||isLate)?'':
+      `<td><span style="color:${s.eb1730>=CFG.earlyWarn?'var(--teal)':'var(--text2)'}">${s.eb1730}</span></td>`;
+    const earlyCell2 = (isOnTime||isLate)?'':
+      `<td><span style="color:${s.eb1700>0?'var(--red)':'var(--muted)'}">${s.eb1700}</span></td>`;
+    const ontimeCell = isLate?'':
+      `<td><span style="color:${(s.onTime||0)>0?'var(--green)':'var(--muted)'};font-weight:${(s.onTime||0)>0?'700':'400'};font-size:${isOnTime?'14px':'inherit'}">${s.onTime||0}</span></td>`;
     return`<tr class="clickable" onclick="openModal('${e.id}')">
       <td><span style="font-weight:600">${e.n.split(' (')[0]}</span>${matchBadge}${idBadge}</td>
       ${desigCell}
       <td style="color:var(--muted);font-size:11px">${e.dv}</td>
       <td><span style="color:var(--green);font-weight:700">${s.present}</span></td>
       <td><span style="color:${nonMatch>5?'var(--red)':'var(--text2)'}">${nonMatch}</span></td>
-      <td><span style="color:${s.late>=CFG.freqLate?'var(--amber)':'var(--text2)'}">${s.late}</span></td>
-      <td><span style="color:${s.eb1730>=CFG.earlyWarn?'var(--teal)':'var(--text2)'}">${s.eb1730}</span></td>
-      <td><span style="color:${s.eb1700>0?'var(--red)':'var(--muted)'}">${s.eb1700}</span></td>
-      <td><span style="color:${(s.onTime||0)>0?'var(--green)':'var(--muted)'};font-weight:${(s.onTime||0)>0?'700':'400'}">${s.onTime||0}</span></td>
+      ${lateCell}${earlyCell1}${earlyCell2}${ontimeCell}
       <td><span style="color:${hc};font-family:var(--mono);font-weight:700">${s.hrs}h</span></td>
       <td>${status}</td>
     </tr>`;
