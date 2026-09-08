@@ -1407,10 +1407,42 @@ function exportHours(){
 function exportDailyDetail(){
   if(!DATA) return;
   const month=(DATA.month||'data').replace(' ','_');
-  const dayNums=DATA.emps[0]?.days.map(d=>d[0])||[];
+  const T_OT_IN  = tM(CFG.onTimeIn);
+  const T_OT_OUT = tM(CFG.onTimeOut);
+  const T_LATE   = tM(CFG.lateTime);
+
+  // filter days per employee based on active analysis view
+  function relevantDays(e){
+    if(activeAnalysisView==='ontime'){
+      return e.days.filter(d=>{
+        if(HOLIDAYS_SET.has(d[0])) return false;
+        const im=d[1]?tM(d[1]):null, om=d[2]?tM(d[2]):null;
+        return im!==null && om!==null && im<=T_OT_IN && om>=T_OT_OUT;
+      });
+    }
+    if(activeAnalysisView==='lateview'){
+      return e.days.filter(d=>{
+        if(HOLIDAYS_SET.has(d[0])) return false;
+        const im=d[1]?tM(d[1]):null;
+        return im!==null && im>T_LATE;
+      });
+    }
+    return e.days;
+  }
+
+  // build unified day-number list from relevant days across all filtered employees
+  const daySet=new Set();
+  filtered.forEach(e=>relevantDays(e).forEach(d=>daySet.add(d[0])));
+  const dayNums=[...daySet].sort((a,b)=>+a-+b);
+
   const hdr=['Att.ID','Name','Designation','Wing',...dayNums.map(d=>`Day${d}_In`),...dayNums.map(d=>`Day${d}_Out`)];
-  const rows=[hdr,...filtered.map(e=>[e.id,e.n,e.dg,e.dv,...e.days.map(d=>d[1]||''),...e.days.map(d=>d[2]||'')])];
-  csvDownload(toCSV(rows),`AEBAS_Daily_${month}.csv`);
+  const rows=[hdr,...filtered.map(e=>{
+    const rd=relevantDays(e);
+    const dayMap=Object.fromEntries(rd.map(d=>[d[0],d]));
+    return[e.id,e.n,e.dg,e.dv,...dayNums.map(d=>dayMap[d]?dayMap[d][1]||'':''),...dayNums.map(d=>dayMap[d]?dayMap[d][2]||'':'')];
+  })];
+  const suffix=activeAnalysisView==='ontime'?'_OnTime':activeAnalysisView==='lateview'?'_Late':'';
+  csvDownload(toCSV(rows),`AEBAS_Daily${suffix}_${month}.csv`);
 }
 </script>
 </body>
