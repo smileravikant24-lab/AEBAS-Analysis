@@ -372,9 +372,13 @@ tbody tr.clickable{cursor:pointer}
         </div>
       </div>
       <div id="av-late-params" style="display:none">
+        <div class="filter-group" style="margin-bottom:6px">
+          <label>In Late after (leave blank to ignore)</label>
+          <input type="time" id="av-late-in" oninput="updateAnalysisView()">
+        </div>
         <div class="filter-group">
-          <label>Late after</label>
-          <input type="time" id="av-late-in" value="09:10" oninput="updateAnalysisView()">
+          <label>Out before / Early Exit (leave blank to ignore)</label>
+          <input type="time" id="av-late-out" oninput="updateAnalysisView()">
         </div>
       </div>
     </div>
@@ -495,7 +499,7 @@ tbody tr.clickable{cursor:pointer}
                     <th id="th-eb1700">Left &lt;17:00</th>
                     <th id="th-ontime">On Time</th>
                     <th id="th-hrs">Total Hrs</th>
-                    <th>Status</th>
+                    <th id="th-status">Status</th>
                   </tr>
                 </thead>
                 <tbody id="emp-tbody"></tbody>
@@ -633,7 +637,8 @@ tbody tr.clickable{cursor:pointer}
 //  CONFIGURATION (editable via Settings panel)
 // ═══════════════════════════════════════════════════════════════
 let CFG = {
-  lateTime:      '09:10',   // late if in-time > this
+  lateTime:      '09:10',
+  lateOut:       '',        // early-exit threshold for late view (empty = ignore)
   early1Time:    '17:30',   // early-exit KPI 1
   early2Time:    '17:00',   // early-exit KPI 2
   officeStart:   '09:00',
@@ -765,10 +770,11 @@ function computeStats(days, holidaySet) {
   const T_E2     = tM(CFG.early2Time);
   const T_START  = tM(CFG.officeStart);
   const T_END    = tM(CFG.officeEnd);
-  const T_OT_IN  = tM(CFG.onTimeIn);
-  const T_OT_OUT = tM(CFG.onTimeOut);
+  const T_OT_IN   = tM(CFG.onTimeIn);
+  const T_OT_OUT  = tM(CFG.onTimeOut);
+  const T_LATE_OUT= CFG.lateOut ? tM(CFG.lateOut) : null;
   const MAX_ARR  = 14*60;
-  let present=0, absent=0, late=0, eb1730=0, eb1700=0, onTime=0, totalMins=0, wd=0;
+  let present=0, absent=0, late=0, eb1730=0, eb1700=0, onTime=0, lateOutDays=0, totalMins=0, wd=0;
   days.forEach(d => {
     if(holidaySet.has(d[0])) return;
     wd++;
@@ -779,6 +785,7 @@ function computeStats(days, holidaySet) {
     if(im && im > T_LATE) late++;
     if(om && om < T_E1)   eb1730++;
     if(om && om < T_E2)   eb1700++;
+    if(T_LATE_OUT && om && om < T_LATE_OUT) lateOutDays++;
     if(im && om && im <= T_OT_IN && om >= T_OT_OUT) onTime++;
     if(im && om) {
       const ei = Math.max(T_START, Math.min(T_END, im));
@@ -786,7 +793,7 @@ function computeStats(days, holidaySet) {
       totalMins += Math.max(0, eo-ei);
     }
   });
-  return { wd, present, absent, late, eb1730, eb1700, onTime, hrs:+(totalMins/60).toFixed(1) };
+  return { wd, present, absent, late, eb1730, eb1700, onTime, lateOutDays, hrs:+(totalMins/60).toFixed(1) };
 }
 
 function computeFilteredStats(e, tinM, toutM) {
@@ -873,7 +880,13 @@ function applyFilters() {
     if(activeCriteria==='late'&&e.s.late===0) return false;
     if(activeCriteria==='b1730'&&e.s.eb1730===0) return false;
     if(activeAnalysisView==='ontime'&&e.s.onTime===0) return false;
-    if(activeAnalysisView==='lateview'&&e.s.late===0) return false;
+    if(activeAnalysisView==='lateview'){
+      const wantIn  = !!CFG.lateTime;
+      const wantOut = !!CFG.lateOut;
+      if(!wantIn && !wantOut) return true;
+      if(wantIn  && e.s.late===0) return false;
+      if(wantOut && (e.s.lateOutDays||0)===0) return false;
+    }
     if(hasTime){
       const cs=computeFilteredStats(e,tinM,toutM);
       if(cs.present===0){e._cs=null;return false;}
@@ -938,7 +951,8 @@ function updateAnalysisView(){
     CFG.onTimeOut = document.getElementById('av-ontime-out').value || '17:30';
     if(DATA) DATA.emps.forEach(e=>{ e.s = computeStats(e.days, HOLIDAYS_SET); });
   } else if(activeAnalysisView==='lateview'){
-    CFG.lateTime = document.getElementById('av-late-in').value || '09:10';
+    CFG.lateTime = document.getElementById('av-late-in').value || '';
+    CFG.lateOut  = document.getElementById('av-late-out').value || '';
     if(DATA) DATA.emps.forEach(e=>{ e.s = computeStats(e.days, HOLIDAYS_SET); });
   }
   if(DATA){
@@ -1013,6 +1027,7 @@ function renderEmpTable(){
   document.getElementById('th-eb1700').textContent  = hasTime?`<${CFG.early2Time} (m)`:`Left <${CFG.early2Time}`;
   document.getElementById('th-hrs').textContent     = hasTime?'Hrs (matched)':'Total Hrs';
   document.getElementById('th-ontime').textContent  = isOnTime?'On Time Days':'On Time';
+  document.getElementById('th-status').textContent  = isOnTime?'Early Exit Days':'Status';
   document.getElementById('th-desig').style.display = CFG.showDesig?'':'none';
 
   const colCount = (CFG.showDesig?1:0) + (isOnTime?6:isLate?7:9);
@@ -1021,7 +1036,10 @@ function renderEmpTable(){
   // Sort: analysis view drives default order
   let rows=[...filtered];
   if(isOnTime) rows.sort((a,b)=>(b.s.onTime||0)-(a.s.onTime||0));
-  else if(isLate) rows.sort((a,b)=>(b.s.late||0)-(a.s.late||0));
+  else if(isLate){
+    const wantOut=!!CFG.lateOut;
+    rows.sort((a,b)=>wantOut?(b.s.lateOutDays||0)-(a.s.lateOutDays||0):(b.s.late||0)-(a.s.late||0));
+  }
 
   tb.innerHTML=rows.map(e=>{
     const s=e._cs||e.s, hc=hrsColor(s.hrs);
@@ -1029,13 +1047,19 @@ function renderEmpTable(){
     const matchBadge=e._cs?`<span style="font-size:9px;color:var(--accent2);font-family:var(--mono);background:rgba(124,92,252,.12);padding:1px 6px;border-radius:3px;margin-left:5px">${s.present}/${e.s.wd}d</span>`:'';
     const idBadge=CFG.showId?`<br><span style="color:var(--muted);font-size:10px;font-family:var(--mono)">${e.id}</span>`:'';
     const desigCell=CFG.showDesig?`<td style="color:var(--muted);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis">${e.dg}</td>`:'';
-    const status=e._cs
-      ?(s.hrs>=8?'<span class="tag tag-green">Matched</span>':'<span class="tag tag-amber">Partial</span>')
-      :(e.s.absent>=CFG.highAbsent?'<span class="tag tag-red">High Absent</span>'
-        :e.s.hrs<CFG.lowHours?'<span class="tag tag-red">Low Hours</span>'
-        :e.s.eb1700>=CFG.earlyWarn?'<span class="tag tag-amber">Early Exit</span>'
-        :e.s.late>=CFG.freqLate?'<span class="tag tag-amber">Freq. Late</span>'
-        :'<span class="tag tag-green">Regular</span>');
+
+    // Status cell: in On Time view show early-exit count; otherwise show tag
+    const statusCell = isOnTime
+      ? `<td><span style="color:${e.s.eb1730>0?'var(--amber)':'var(--muted)'};font-weight:${e.s.eb1730>0?'700':'400'};font-size:13px">${e.s.eb1730}</span></td>`
+      : `<td>${e._cs
+          ?(s.hrs>=8?'<span class="tag tag-green">Matched</span>':'<span class="tag tag-amber">Partial</span>')
+          :(e.s.absent>=CFG.highAbsent?'<span class="tag tag-red">High Absent</span>'
+            :e.s.hrs<CFG.lowHours?'<span class="tag tag-red">Low Hours</span>'
+            :e.s.eb1700>=CFG.earlyWarn?'<span class="tag tag-amber">Early Exit</span>'
+            :e.s.late>=CFG.freqLate?'<span class="tag tag-amber">Freq. Late</span>'
+            :'<span class="tag tag-green">Regular</span>')
+        }</td>`;
+
     const lateCell   = isOnTime?'':
       `<td><span style="color:${s.late>=CFG.freqLate?'var(--amber)':'var(--text2)'}">${s.late}</span></td>`;
     const earlyCell1 = (isOnTime||isLate)?'':
@@ -1052,7 +1076,7 @@ function renderEmpTable(){
       <td><span style="color:${nonMatch>5?'var(--red)':'var(--text2)'}">${nonMatch}</span></td>
       ${lateCell}${earlyCell1}${earlyCell2}${ontimeCell}
       <td><span style="color:${hc};font-family:var(--mono);font-weight:700">${s.hrs}h</span></td>
-      <td>${status}</td>
+      ${statusCell}
     </tr>`;
   }).join('');
 }
