@@ -1027,7 +1027,7 @@ function renderEmpTable(){
   document.getElementById('th-eb1700').textContent  = hasTime?`<${CFG.early2Time} (m)`:`Left <${CFG.early2Time}`;
   document.getElementById('th-hrs').textContent     = hasTime?'Hrs (matched)':'Total Hrs';
   document.getElementById('th-ontime').textContent  = isOnTime?'On Time Days':'On Time';
-  document.getElementById('th-status').textContent  = isOnTime?'Early Exit Days':'Status';
+  document.getElementById('th-status').textContent  = (isOnTime||isLate)?'Early Exit Days':'Status';
   document.getElementById('th-desig').style.display = CFG.showDesig?'':'none';
 
   const colCount = (CFG.showDesig?1:0) + (isOnTime?6:isLate?7:9);
@@ -1048,8 +1048,8 @@ function renderEmpTable(){
     const idBadge=CFG.showId?`<br><span style="color:var(--muted);font-size:10px;font-family:var(--mono)">${e.id}</span>`:'';
     const desigCell=CFG.showDesig?`<td style="color:var(--muted);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis">${e.dg}</td>`:'';
 
-    // Status cell: in On Time view show early-exit count; otherwise show tag
-    const statusCell = isOnTime
+    // Status cell: in On Time / Late view show early-exit count; otherwise show tag
+    const statusCell = (isOnTime||isLate)
       ? `<td><span style="color:${e.s.eb1730>0?'var(--amber)':'var(--muted)'};font-weight:${e.s.eb1730>0?'700':'400'};font-size:13px">${e.s.eb1730}</span></td>`
       : `<td>${e._cs
           ?(s.hrs>=8?'<span class="tag tag-green">Matched</span>':'<span class="tag tag-amber">Partial</span>')
